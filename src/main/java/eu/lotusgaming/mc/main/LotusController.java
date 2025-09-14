@@ -3,26 +3,22 @@ package eu.lotusgaming.mc.main;
 
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 
 import eu.lotusgaming.mc.misc.MySQL;
 import eu.lotusgaming.mc.misc.Playerdata;
 import eu.lotusgaming.mc.misc.Prefix;
 import net.md_5.bungee.api.ChatColor;
-import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
 
 public class LotusController {
 	
 	//Language System
-		private static HashMap<String, HashMap<String, String>> langMap = new HashMap<>();
-		public static HashMap<String, String> playerLanguages = new HashMap<>();
-		private static List<String> availableLanguages = new ArrayList<>();
+	private static HashMap<String, HashMap<String, String>> langMap = new HashMap<>();
+	public static HashMap<String, String> playerLanguages = new HashMap<>();
+	public static HashMap<String, String> availableLanguages = new HashMap<>();
 	
 	//Prefix System
 	private static HashMap<String, String> prefix = new HashMap<>();
@@ -30,49 +26,37 @@ public class LotusController {
 	
 	public boolean initLanguageSystem() {
 		try {
-			PreparedStatement ps = MySQL.getConnection().prepareStatement("SELECT * FROM core_translations");
+			PreparedStatement ps = MySQL.getConnection().prepareStatement("SELECT * FROM core_languages");
 			ResultSet rs = ps.executeQuery();
-			ResultSetMetaData rsmd =  rs.getMetaData();
-			int columnCount = rsmd.getColumnCount();
-			int languageStrings = 0;
-			int colToStartFrom = 0;
-			if(rs.next()) {
-				for(int i = 1; i <= columnCount; i++) {
-					String name = rsmd.getColumnName(i);
-					if(name.equals("German")) {
-						colToStartFrom = i;
-						break;
-					}
-				}
-				HashMap<String, String> map;
-				for(int i = colToStartFrom; i <= columnCount; i++) {
-					String name = rsmd.getColumnName(i);
-					availableLanguages.add(name);
-					Main.logger.info("Logged language " + name + " to List");
-					PreparedStatement ps1 = MySQL.getConnection().prepareStatement("SELECT path," + name + ",isGame FROM core_translations");
-					ResultSet rs1 = ps1.executeQuery();
-					map = new HashMap<>();
-					int subLangStrings = 0;
-					while(rs1.next()) {
-						if(rs1.getBoolean("isGame")) {
-							subLangStrings++;
-							//Only get Strings, which are for the game (what would we do with website/bot string, right?)
-							map.put(rs1.getString("path"), rs1.getString(name));
-						}
-					}
-					languageStrings = subLangStrings;
-					langMap.put(name, map);
-				}
-				Main.logger.info("langMap logged " + langMap.size() + " entries with each " + languageStrings + " entries per language.");
+			while(rs.next()){
+				int langId = rs.getInt("LanguageId");
+                String shortName = rs.getString("ShortName");
+				String langName = rs.getString("FullName");
+				String langCode = rs.getString("LanguageCode");
+				availableLanguages.put(shortName, langName);
+				Main.logger.info("Found Language: " + langName + " (" + langCode + " / " + shortName + ") with ID " + langId);
+                try (PreparedStatement ps1 = MySQL.getConnection().prepareStatement("SELECT k.TranslationKey, t.TranslationValue FROM core_translations t JOIN core_translation_keys k ON k.TranslationKeyId = t.TranslationKeyId WHERE k.isGame = 1 AND LanguageId = ?")) {
+                    ps1.setInt(1, langId);
+                    ResultSet translations = ps1.executeQuery();
+
+                    HashMap<String, String> translationsByLanguage = new HashMap<>();
+                    while (translations.next()) {
+                        String key = translations.getString("TranslationKey");
+                        String value = translations.getString("TranslationValue");
+                        translationsByLanguage.put(key, value);
+                    }
+
+                    langMap.put(shortName, translationsByLanguage);
+                    translations.close();
+                }
 			}
+			rs.close();
+			ps.close();
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
-		return langMap.isEmpty();
-	}
-	
-	public List<String> getAvailableLanguages() {
-		return availableLanguages;
+
+		return false;
 	}
 	
 	public boolean initPlayerLanguages() {
@@ -101,8 +85,7 @@ public class LotusController {
 	
 	//This method is used if no spaceholders needs to be translated additionally.
 	public void sendMessageReady(ProxiedPlayer player, String path) {
-		player.sendMessage(ChatMessageType.CHAT, TextComponent.fromLegacy(getPrefix(Prefix.MAIN) + sendMessageToFormat(player, path)));
-		//player.sendMessage(getPrefix(Prefix.MAIN) + sendMessageToFormat(player, path));
+		player.sendMessage(TextComponent.fromLegacy(getPrefix(Prefix.MAIN) + sendMessageToFormat(player, path)));
 	}
 	
 	//This method is used if spaceholders needs to be translated before sending (or if the target is NOT a player).
@@ -126,8 +109,7 @@ public class LotusController {
 	
 	//This method is just for one string, the NoPerm one
 	public void noPerm(ProxiedPlayer player, String lackingPermissionNode) {
-		player.sendMessage(ChatMessageType.CHAT, TextComponent.fromLegacy(getPrefix(Prefix.System) + sendMessageToFormat(player, "global.noPermission").replace("%permissionNode%", lackingPermissionNode)));
-		//player.sendMessage(getPrefix(Prefix.System) + sendMessageToFormat(player, "global.noPermission").replace("%permissionNode%", lackingPermissionNode));
+		player.sendMessage(TextComponent.fromLegacy(getPrefix(Prefix.System) + sendMessageToFormat(player, "global.noPermission").replace("%permissionNode%", lackingPermissionNode)));
 	}
 	
 	//This method returns the String from the language selected.
@@ -140,6 +122,7 @@ public class LotusController {
 				return "The path '" + path + "' does not exist!";
 			}
 		}else {
+            Main.logger.warning("Language '" + language + "' does not exist. Falling back to English.");
 			return "The language '" + language + "' does not exist!";
 		}
 	}

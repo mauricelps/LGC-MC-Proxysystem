@@ -33,7 +33,6 @@
         <Simple-Yaml.version>1.8.4</Simple-Yaml.version>
         <JDA.version>5.3.2</JDA.version>
         <gson.version>2.11.0</gson.version>
-        <nanohttpd.version>2.3.1</nanohttpd.version>
     </properties>
 
     <repositories>
@@ -78,12 +77,6 @@
     		<groupId>com.google.code.gson</groupId>
     		<artifactId>gson</artifactId>
     		<version>${gson.version}</version>
-		</dependency>
-		
-		<dependency>
-			<groupId>org.nanohttpd</groupId>
-			<artifactId>nanohttpd</artifactId>
-			<version>${nanohttpd.version}</version>
 		</dependency>
     </dependencies>
 
